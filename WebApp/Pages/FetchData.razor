@@ -1,60 +1,104 @@
 ﻿@page "/fetchdata"
+@using System.Text.Json
+@using System.Text
+@using Data.Models
 @inject HttpClient Http
+<h3>Create Post</h3>
 
-<PageTitle>Weather forecast</PageTitle>
+<EditForm Model="_newPost" OnValidSubmit="CreatePostAsync">
+    <DataAnnotationsValidator/>
+    <ValidationSummary/>
+    <InputText id="username" @bind-Value="_newPost.Username" placeholder="Username"/>
+    <InputText id="type" @bind-Value="_newPost.Type" placeholder="Type"/>
+    <button type="submit">Create</button>
+</EditForm>
 
-<h1>Weather forecast</h1>
-
-<p>This component demonstrates fetching data from the server.</p>
-
-@if (forecasts == null)
+<h3>Posts</h3>
+@foreach (var post in _posts)
 {
-    <p>
-        <em>Loading...</em>
-    </p>
+    <h4>@post.Username (@post.Type)</h4>
+    <button @onclick="() => LoadPost(post.PostId)">Edit</button>
+    <button @onclick="() => DeletePost(post.PostId)">Delete</button>
 }
-else
+
+@if (_editPost != null)
 {
-    <table class="table">
-        <thead>
-        <tr>
-            <th>Date</th>
-            <th>Temp. (C)</th>
-            <th>Temp. (F)</th>
-            <th>Summary</th>
-        </tr>
-        </thead>
-        <tbody>
-        @foreach (var forecast in forecasts)
-        {
-            <tr>
-                <td>@forecast.Date.ToShortDateString()</td>
-                <td>@forecast.TemperatureC</td>
-                <td>@forecast.TemperatureF</td>
-                <td>@forecast.Summary</td>
-            </tr>
-        }
-        </tbody>
-    </table>
+    <h3>Edit Post</h3>
+    <EditForm Model="_editPost" OnValidSubmit="UpdatePost">
+        <DataAnnotationsValidator/>
+        <ValidationSummary/>
+
+        <InputText id="username" @bind-Value="_editPost.Username" placeholder="Username"/>
+        <InputText id="type" @bind-Value="_editPost.Type" placeholder="Type"/>
+        <button type="submit">Update</button>
+    </EditForm>
 }
 
 @code {
-    private WeatherForecast[]? forecasts;
+    private List<Post> _posts = new();
+    private Post _newPost = new();
+    private Post? _editPost;
+
+        private const string apiUrl = "https://blogfunctionsjfgc.azurewebsites.net/api";
 
     protected override async Task OnInitializedAsync()
     {
-        forecasts = await Http.GetFromJsonAsync<WeatherForecast[]>("sample-data/weather.json");
+        await LoadPosts();
     }
 
-    public class WeatherForecast
+    private async Task LoadPosts()
     {
-        public DateTime Date { get; set; }
+        _posts = await Http.GetFromJsonAsync<List<Post>>(apiUrl + "/getallposts");
+    }
 
-        public int TemperatureC { get; set; }
+    private async Task LoadPost(Guid id)
+    {
+        _editPost = await Http.GetFromJsonAsync<Post>(apiUrl + $"/getpost/{id}");
+    }
 
-        public string? Summary { get; set; }
+    private async Task CreatePostAsync()
+    {
+        var postContent = new StringContent(JsonSerializer.Serialize(_newPost), Encoding.UTF8, "application/json");
 
-        public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
+        var response = await Http.PostAsync(apiUrl + "/createpost", postContent);
+        if (response.IsSuccessStatusCode)
+        {
+            _newPost = new Post();
+            await LoadPosts();
+        }
+        else
+        {
+    // Handle failure
+        }
+    }
+
+    private async Task UpdatePost()
+    {
+        var postContent = new StringContent(JsonSerializer.Serialize(_editPost), Encoding.UTF8, "application/json");
+
+        var response = await Http.PutAsync(apiUrl + $"/updatepost/{_editPost.PostId}", postContent);
+        if (response.IsSuccessStatusCode)
+        {
+            _editPost = null;
+            await LoadPosts();
+        }
+        else
+        {
+    // Handle failure
+        }
+    }
+
+    private async Task DeletePost(Guid id)
+    {
+        var response = await Http.DeleteAsync(apiUrl + $"/deletepost/{id}");
+        if (response.IsSuccessStatusCode)
+        {
+            await LoadPosts();
+        }
+        else
+        {
+    // Handle failure
+        }
     }
 
 }
